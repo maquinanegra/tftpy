@@ -4,8 +4,11 @@ methods.
 
 (C) João Galamba, 2022
 """
+# pylint: disable=redefined-outer-name
 
+from multiprocessing.sharedctypes import Value
 import struct 
+import string
 from socket import socket, AF_INET, SOCK_DGRAM
 from typing import Tuple
 
@@ -57,22 +60,58 @@ ERROR_MSGS = {
 # FileReference = Union[str, BinaryIO]  # A path or a file object
 
 def pack_rrq(filename: str, mode: str = DEFAULT_MODE) -> bytes:
-    pack_filename = filename.encode() + b'\x00'
-    pack_mode = mode.encode() + b'\x00'
-    pack_format = f'!H{len(pack_filename)}s{len(pack_mode)}s'
-    return struct.pack(pack_format, RRQ, pack_filename, pack_mode)
+    return _pack_rrq_wrq(RRQ, filename, mode)
 #:
 
 def unpack_rrq(packet: bytes) -> Tuple[str, str]:
+    return _unpack_rrq_wrq(RRQ, packet)
+#:
+
+def pack_wrq(filename: str, mode: str = DEFAULT_MODE) -> bytes:
+    return _pack_rrq_wrq(WRQ, filename, mode)
+#:
+
+def unpack_wrq(packet: bytes) -> Tuple[str, str]:
+    return _unpack_rrq_wrq(WRQ, packet)
+#:
+
+def _pack_rrq_wrq(opcode: int, filename: str, mode: str = DEFAULT_MODE) -> bytes:
+    if not is_ascii_printable(filename):
+        raise ValueError(f'Invalid filename {filename} (not ascii printable)')
+    pack_filename = filename.encode() + b'\x00'
+    pack_mode = mode.encode() + b'\x00'
+    pack_format = f'!H{len(pack_filename)}s{len(pack_mode)}s'
+    return struct.pack(pack_format, opcode, pack_filename, pack_mode)
+#:
+
+def _unpack_rrq_wrq(opcode: int, packet: bytes) -> Tuple[str, str]:
+    packet_opcode = unpack_opcode(packet)
+    if packet_opcode != opcode:
+        raise ValueError('Invalid opcode {packet_opcode}. Expecting {opcode}.')
+
     filename_delim = packet.index(b'\x00', 2)
+    filename = packet[2:filename_delim].decode()
+    if not is_ascii_printable(filename):
+        raise ValueError(f'Invalid filename {filename} (not ascii printable).')
+
     mode_delim = len(packet) - 1
+    mode = packet[filename_delim + 1:mode_delim].decode()
+
     return (
-        packet[2:filename_delim].decode(), 
-        packet[filename_delim + 1:mode_delim].decode(),
+        filename, 
+        mode,
     )
 #:
 
-# pack_wrq, unpack_wrq
+def unpack_opcode(packet: bytes) -> int:
+    opcode, *_ = struct.unpack("!H", packet[:2])
+    return opcode
+#:
+
+def is_ascii_printable(txt: str) -> bool:
+    return not (set(txt) - set(string.printable))
+#:
+
 # pack_dat, unpack_dat
 # pack_ack, unpack_ack
 # pack_err, unpack_err
@@ -87,5 +126,9 @@ if __name__ == '__main__':
 
     print()
     print("____ WRQ ____")
+    wrq = pack_wrq('relatorio.pdf')
+    print(wrq)
+    filename, mode = unpack_wrq(wrq)
+    print(f"Filename: {filename} Mode: {mode}")
 
 #:
