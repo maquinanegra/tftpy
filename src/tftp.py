@@ -18,8 +18,9 @@ from typing import Tuple
 ##
 ################################################################################
 
-MAX_DATA_LEN = 512       # bytes
-INACTIVITY_TIMEOUT = 30  # segs
+MAX_DATA_LEN = 512            # bytes
+INACTIVITY_TIMEOUT = 30       # segs
+MAX_BLOCK_NUMBER = 2**16 - 1 
 DEFAULT_MODE = 'octet'
 
 # TFTP message opcodes
@@ -78,6 +79,9 @@ def unpack_wrq(packet: bytes) -> Tuple[str, str]:
 def _pack_rrq_wrq(opcode: int, filename: str, mode: str = DEFAULT_MODE) -> bytes:
     if not is_ascii_printable(filename):
         raise ValueError(f'Invalid filename {filename} (not ascii printable)')
+    if mode != 'octet':
+        raise ValueError(f'Invalid mode {mode}. Supported modes: octet.')
+
     pack_filename = filename.encode() + b'\x00'
     pack_mode = mode.encode() + b'\x00'
     pack_format = f'!H{len(pack_filename)}s{len(pack_mode)}s'
@@ -85,10 +89,6 @@ def _pack_rrq_wrq(opcode: int, filename: str, mode: str = DEFAULT_MODE) -> bytes
 #:
 
 def _unpack_rrq_wrq(opcode: int, packet: bytes) -> Tuple[str, str]:
-    packet_opcode = unpack_opcode(packet)
-    if packet_opcode != opcode:
-        raise ValueError('Invalid opcode {packet_opcode}. Expecting {opcode}.')
-
     filename_delim = packet.index(b'\x00', 2)
     filename = packet[2:filename_delim].decode()
     if not is_ascii_printable(filename):
@@ -97,24 +97,45 @@ def _unpack_rrq_wrq(opcode: int, packet: bytes) -> Tuple[str, str]:
     mode_delim = len(packet) - 1
     mode = packet[filename_delim + 1:mode_delim].decode()
 
-    return (
-        filename, 
-        mode,
-    )
+    return (filename, mode)
+#:
+
+def pack_dat(block_number: int, data: bytes) -> bytes:
+    if not 0 <= block_number <= MAX_BLOCK_NUMBER:
+        ValueError(f'Invalid block number {block_number}')
+    if len(data) > MAX_DATA_LEN:
+        ValueError(f'Invalid data length {len(data)} ')
+    fmt = f'!HH{len(data)}s'
+    return struct.pack(fmt, DAT, block_number, data)
+#:
+
+def unpack_dat(packet: bytes) -> Tuple[int, bytes]:
+    opcode, block_number = struct.unpack('!HH', packet[:4])
+    return block_number, packet[4:]
+#:
+
+def pack_ack(block_number: int) -> bytes:
+    if not 0 <= block_number <= MAX_BLOCK_NUMBER:
+        ValueError(f'Invalid block number {block_number}')
+    return struct.pack('!HH', ACK, block_number)
+#:
+
+def unpack_ack(packet: bytes) -> int:
+    if len(packet) > 4:
+        raise ValueError(f'Invalid packet length: {len(packet)}')
+    return struct.unpack('!H', packet[2:4])[0]
 #:
 
 def unpack_opcode(packet: bytes) -> int:
     opcode, *_ = struct.unpack("!H", packet[:2])
+    if opcode not in (RRQ, WRQ, DAT, ACK, ERR):
+        raise ValueError(f'Unrecognized opcode {opcode}.')
     return opcode
 #:
 
 def is_ascii_printable(txt: str) -> bool:
-    return not (set(txt) - set(string.printable))
+    return not set(txt) - set(string.printable)
 #:
-
-# pack_dat, unpack_dat
-# pack_ack, unpack_ack
-# pack_err, unpack_err
 
 if __name__ == '__main__':
     print()
