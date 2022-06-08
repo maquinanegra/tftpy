@@ -23,6 +23,8 @@ MAX_DATA_LEN = 512            # bytes
 INACTIVITY_TIMEOUT = 30       # segs
 MAX_BLOCK_NUMBER = 2**16 - 1 
 DEFAULT_MODE = 'octet'
+SOCKET_BUFFER_SIZE = 8192     # bytes
+
 
 # TFTP message opcodes
 RRQ = 1   # Read Request
@@ -58,8 +60,92 @@ ERROR_MSGS = {
     NO_SUCH_USER        : 'No such user.'
 }
 
-# INET4Address = Tuple[str, int]        # TCP/UDP address => IPv4 and port
+INET4Address = Tuple[str, int]        # TCP/UDP address => IPv4 and port
 # FileReference = Union[str, BinaryIO]  # A path or a file object
+
+###############################################################
+##
+##      SEND AND RECEIVE MESSAGES
+##
+###############################################################
+
+def get_file(serv_addr: INET4Address, file_name: str):
+    """
+    RRQ a file given by filename from a remote TFTP server given
+    by serv_addr.
+    """
+    """
+    RRQ a file given by file_name from a remote TFTP server given
+    by serv_addr.
+    """
+    with socket(AF_INET, SOCK_DGRAM) as sock:
+        with open(file_name, 'wb') as file:
+            sock.settimeout(INACTIVITY_TIMEOUT)
+            rrq = pack_rrq(file_name)
+            sock.sendto(rrq, serv_addr)
+            next_block_num = 1
+
+            while True:
+                packet, new_serv_addr = sock.recvfrom(SOCKET_BUFFER_SIZE)
+                opcode = unpack_opcode(packet)
+
+                if opcode == DAT:
+                    block_num, data = unpack_dat(packet)
+                    if block_num != next_block_num:
+                        raise ProtocolError(f'Invalid block number {block_num}')
+
+                    file.write(data)
+
+                    ack = pack_ack(next_block_num)
+                    sock.sendto(ack, new_serv_addr)
+
+                    if len(data) < MAX_DATA_LEN:
+                        break
+
+                elif opcode == ERR:
+                    raise Err(*unpack_err(packet))
+
+                else: # opcode not in (DAT, ERR):
+                    raise ProtocolError(f'Invalid opcode {opcode}')
+
+                next_block_num += 1
+            #:
+        #:
+    #:
+#:
+
+# def get_file(server_add: INET4Address, file_name: str):
+#     """
+#     RRQ a file given by filename from a remote TFTP server given
+#     by serv_addr.
+#     """
+# 1. Abrir ficheiro "file_name" para escrita
+#
+# 2. Criar socket DGRAM
+#
+# 3. Criar e enviar pacote RRQ através do socket
+#
+# 4. Ler/Esperar pelo próximo pacote: (é suposto ser um DAT)
+#    .1 Obtivemos pacote => extrair o opcode 
+#
+#    .2 Que pacote recebemos?
+#
+#       Pacote DAT:
+#           .1 Extrair block_number e dados do DAT
+#
+#           .2 SE for um block_number "esperado": 
+#                   a) então guardamos os dados no ficheiro
+#                   b) Construimos e enviamos ACK correspondente
+#                   c) Se dimensão dos dados for inferior MAX_DATA_LEN (512B)
+#                      terminar o RRQ (transferência chegou ao fim)
+#              SENÃO se block_number "inválido": assinalar erro de protocolo e terminar RRQ
+#
+#       Pacote ERR: Assinalar o erro e terminamos RRQ
+#
+#       Outro pacote qq: Assinalar erro de protocolo
+#
+# 5. Voltar a 4
+#:
 
 ################################################################################
 ##
