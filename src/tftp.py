@@ -10,7 +10,7 @@ import re
 import struct 
 import string
 import ipaddress
-from socket import socket, AF_INET, SOCK_DGRAM
+import socket 
 from typing import Tuple
 
 ################################################################################
@@ -78,7 +78,7 @@ def get_file(serv_addr: INET4Address, file_name: str):
     RRQ a file given by file_name from a remote TFTP server given
     by serv_addr.
     """
-    with socket(AF_INET, SOCK_DGRAM) as sock:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         with open(file_name, 'wb') as file:
             sock.settimeout(INACTIVITY_TIMEOUT)
             rrq = pack_rrq(file_name)

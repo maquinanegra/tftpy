@@ -17,21 +17,35 @@ dest_file       name for the destination file
 
 '''
 
-from click import UsageError
 import docopt
-import sys
+import tftp
+
+
+def tftp_interactive(args, server_info):
+    print(f"Exchaging files with server '{server_info[1]}' ({server_info[0]})")
+    intera_comm = input("tftp client>")
+
+
+def verify_cli_in(args):    
+    # specified port is not a number > exit 
+    if not args["-p"].isnumeric():
+        raise docopt.DocoptExit
+    else:
+        server_info = tftp.get_server_info(args['<server>'])
+        # no destination file specified > use source filename
+        if not args.get("<dest_file>"): 
+            args["<dest_file = args>"]=args["<source_file>"]
+        # mandatory fields > not verified    
+        if (not args.get("<source_file>") and (args.get("put")==True or args.get("get")==True)) or (args.get("<source_file>") and (args.get("put")==False and args.get("get")==False)):
+            raise docopt.DocoptExit
+        # interactive cli access
+    
+        else: 
+            tftp_interactive(args, server_info)
 
 args=docopt.docopt(__doc__)
-print(args)
+#print(args)
 
-
-# specified por is not a number -> exit 
-if not args["-p"].isnumeric():
-    raise docopt.DocoptExit
-else:
-    if not args.get("<source_file>"): # no source file specified -> interactive
-        comm = input("tftp client>")    
-    if not args.get("<dest_file>"): # no destination file specified -> use source filename
-        args["<dest_file = args>"]=args["<source_file>"]
+verify_cli_in(args)
 
 
