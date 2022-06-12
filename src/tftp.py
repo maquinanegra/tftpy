@@ -69,7 +69,7 @@ INET4Address = Tuple[str, int]        # TCP/UDP address => IPv4 and port
 ##
 ###############################################################
 
-def get_file(serv_addr: INET4Address, file_name: str):
+def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
     """
     RRQ a file given by filename from a remote TFTP server given
     by serv_addr.
@@ -79,7 +79,7 @@ def get_file(serv_addr: INET4Address, file_name: str):
     by serv_addr.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        with open(file_name, 'wb') as file:
+        with open(new_file_name, 'wb') as file:
             sock.settimeout(INACTIVITY_TIMEOUT)
             rrq = pack_rrq(file_name)
             sock.sendto(rrq, serv_addr)
@@ -334,7 +334,7 @@ def is_ascii_printable(txt: str) -> bool:
     # ALTERNATIVA: return set(txt).issubset(string.printable)
 #:
 
-if __name__ == '__main__':
+if __name__ == __name__:
     print()
     print("____ RRQ ____")
     rrq = pack_rrq('relatorio.pdf')
