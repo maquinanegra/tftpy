@@ -21,8 +21,8 @@ import tftp
 
 def action(args,server_info):
     if args.get("get"):
-        x = tftp.get_file((server_info[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
-        print(f"Received file '{args.get('<source_file>')}' {x} bytes.\nSaved locally as '{args.get('<dest_file>')}'")
+        tot_bytes = tftp.get_file((server_info[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
+        print(f"Received file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved locally as '{args.get('<dest_file>')}'")
 
 def tftp_interactive(args, server_info):
     if server_info[1]:
