@@ -21,8 +21,8 @@ import tftp
 
 def action(args,server_info):
     if args.get("get"):
-        print("NEW FILE\n",args.get('<dest_file>'))
-        tftp.get_file((server_info[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
+        x = tftp.get_file((server_info[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
+        print(f"Received file '{args.get('<source_file>')}' {x} bytes.\nSaved locally as '{args.get('<dest_file>')}'")
 
 def tftp_interactive(args, server_info):
     if server_info[1]:
@@ -50,10 +50,8 @@ def verify_cli_in(args):
     return _server_info
 
 args=docopt.docopt(__doc__)
-print("ARGS\n",args)
 
 server_info = verify_cli_in(args)
-print("SERVER INFO\n",server_info)
 
 action(args,server_info)
 

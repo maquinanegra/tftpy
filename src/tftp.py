@@ -84,6 +84,7 @@ def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
             rrq = pack_rrq(file_name)
             sock.sendto(rrq, serv_addr)
             next_block_num = 1
+            tot_data = 0
 
             while True:
                 packet, new_serv_addr = sock.recvfrom(SOCKET_BUFFER_SIZE)
@@ -99,6 +100,7 @@ def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
                     ack = pack_ack(next_block_num)
                     sock.sendto(ack, new_serv_addr)
 
+                    tot_data += len(data)
                     if len(data) < MAX_DATA_LEN:
                         break
 
@@ -111,7 +113,7 @@ def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
                 next_block_num += 1
             #:
         #:
-    #:
+    return tot_data
 #:
 
 # def get_file(server_add: INET4Address, file_name: str):
@@ -334,7 +336,7 @@ def is_ascii_printable(txt: str) -> bool:
     # ALTERNATIVA: return set(txt).issubset(string.printable)
 #:
 
-if __name__ == __name__:
+if __name__ == '__main__':
     print()
     print("____ RRQ ____")
     rrq = pack_rrq('relatorio.pdf')
