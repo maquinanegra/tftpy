@@ -1,7 +1,6 @@
 """
 This module handles all TFTP related data structures and 
 methods.
-
 (C) João Galamba, 2022
 """
 # pylint: disable=redefined-outer-name
@@ -10,8 +9,8 @@ import re
 import struct 
 import string
 import ipaddress
-from socket import socket, AF_INET, SOCK_DGRAM
-from typing import Tuple
+import socket 
+from typing import Tuple, Iterable
 
 ################################################################################
 ##
@@ -69,7 +68,7 @@ INET4Address = Tuple[str, int]        # TCP/UDP address => IPv4 and port
 ##
 ###############################################################
 
-def get_file(serv_addr: INET4Address, file_name: str):
+def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
     """
     RRQ a file given by filename from a remote TFTP server given
     by serv_addr.
@@ -78,13 +77,13 @@ def get_file(serv_addr: INET4Address, file_name: str):
     RRQ a file given by file_name from a remote TFTP server given
     by serv_addr.
     """
-    with socket(AF_INET, SOCK_DGRAM) as sock:
-        with open(file_name, 'wb') as file:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        with open(new_file_name, 'wb') as file:
             sock.settimeout(INACTIVITY_TIMEOUT)
             rrq = pack_rrq(file_name)
             sock.sendto(rrq, serv_addr)
             next_block_num = 1
-
+            tot_data = 0
             while True:
                 packet, new_serv_addr = sock.recvfrom(SOCKET_BUFFER_SIZE)
                 opcode = unpack_opcode(packet)
@@ -95,6 +94,7 @@ def get_file(serv_addr: INET4Address, file_name: str):
                         raise ProtocolError(f'Invalid block number {block_num}')
 
                     file.write(data)
+                    tot_data += len(data)
 
                     ack = pack_ack(next_block_num)
                     sock.sendto(ack, new_serv_addr)
@@ -109,60 +109,64 @@ def get_file(serv_addr: INET4Address, file_name: str):
                     raise ProtocolError(f'Invalid opcode {opcode}')
 
                 next_block_num += 1
-            #:
+            return tot_data#:
         #:
     #:
 #:
 
-def put_file(server_add: INET4Address, file_name: str):
+def iter_bytes(my_bytes):
+    for i in range(len(my_bytes)):
+        yield my_bytes[i:i+1]
+
+def put_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
     """
     WRQ a file given by filename to a remote TFTP server given
     by serv_addr.
     """
-    with socket(AF_INET, SOCK_DGRAM) as sock:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         with open(file_name, 'rb') as file:
             sock.settimeout(INACTIVITY_TIMEOUT)
-            wrq = pack_wrq(file_name)
+            wrq = pack_wrq(new_file_name)
             sock.sendto(wrq, serv_addr)
             next_block_num = 1
-
-            while True:
+            c = file.read()
+            x = iter_bytes(c)    
+            _supra_state_ = 1
+            while _supra_state_ == 1:
+                print("INCOMING")
                 packet, new_serv_addr = sock.recvfrom(SOCKET_BUFFER_SIZE)
                 opcode = unpack_opcode(packet)
+                
+                if opcode == ACK:
+                    block_num = unpack_ack(packet)
+                    print("blknum",block_num)
+                    print("nxtblk",next_block_num)
+                    if block_num + 1 != next_block_num:
+                        raise ProtocolError(f'Invalid block number {block_num}')
 
-                print(next(file))
-                #if opcode == ACK:
-                #    block_num, data = unpack_dat(packet)
-                #    if block_num != next_block_num-1:
-                #        raise ProtocolError(f'Invalid block number {block_num}')
-
-                    #dat = pack_dat(next_block_num)
-                    #sock.sendto(ack, new_serv_addr)
-
-                    #if len(data) < MAX_DATA_LEN:
-                    #   break
-
-# 4. Ler/Esperar pelo próximo pacote: (é suposto ser um DAT)
-#    .1 Obtivemos pacote => extrair o opcode 
-#
-#    .2 Que pacote recebemos?
-#
-#       Pacote DAT:
-#           .1 Extrair block_number e dados do DAT
-#
-#           .2 SE for um block_number "esperado": 
-#                   a) então guardamos os dados no ficheiro
-#                   b) Construimos e enviamos ACK correspondente
-#                   c) Se dimensão dos dados for inferior MAX_DATA_LEN (512B)
-#                      terminar o RRQ (transferência chegou ao fim)
-#              SENÃO se block_number "inválido": assinalar erro de protocolo e terminar RRQ
-#
-#       Pacote ERR: Assinalar o erro e terminamos RRQ
-#
-#       Outro pacote qq: Assinalar erro de protocolo
-#
-# 5. Voltar a 4
-#:
+                    _sub_state_ = 1
+                    data = b''
+                    while _sub_state_ == 1:
+                        try:
+                            if len(data) < 512:
+                                w = next(x)
+                                data += w
+                                
+                            else:
+                                print("###SENDING", next_block_num,len(data),data)
+                                dat = pack_dat(next_block_num, data)
+                                sock.sendto(dat, new_serv_addr)
+                                _sub_state_= 0
+                        except StopIteration:
+                            print("###END", next_block_num,len(data),data)
+                            dat = pack_dat(next_block_num, data)
+                            sock.sendto(dat, new_serv_addr)
+                            _sub_state_= 0
+                            _supra_state_= 0
+                
+                    
+                next_block_num += 1
+            print("FIM")
 
 ################################################################################
 ##
