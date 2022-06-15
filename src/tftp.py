@@ -10,7 +10,7 @@ import struct
 import string
 import ipaddress
 import socket 
-from typing import Tuple, Iterable
+from typing import Tuple
 
 ################################################################################
 ##
@@ -132,15 +132,13 @@ def put_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
             c = file.read()
             x = iter_bytes(c)    
             _supra_state_ = 1
+            tot_data = 0
             while _supra_state_ == 1:
-                print("INCOMING")
                 packet, new_serv_addr = sock.recvfrom(SOCKET_BUFFER_SIZE)
                 opcode = unpack_opcode(packet)
                 
                 if opcode == ACK:
                     block_num = unpack_ack(packet)
-                    print("blknum",block_num)
-                    print("nxtblk",next_block_num)
                     if block_num + 1 != next_block_num:
                         raise ProtocolError(f'Invalid block number {block_num}')
 
@@ -151,22 +149,21 @@ def put_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
                             if len(data) < 512:
                                 w = next(x)
                                 data += w
-                                
+                                tot_data += 1
+
                             else:
-                                print("###SENDING", next_block_num,len(data),data)
                                 dat = pack_dat(next_block_num, data)
                                 sock.sendto(dat, new_serv_addr)
                                 _sub_state_= 0
                         except StopIteration:
-                            print("###END", next_block_num,len(data),data)
                             dat = pack_dat(next_block_num, data)
                             sock.sendto(dat, new_serv_addr)
                             _sub_state_= 0
                             _supra_state_= 0
-                
+                                                  
                     
                 next_block_num += 1
-            print("FIM")
+            return tot_data
 
 ################################################################################
 ##
@@ -329,7 +326,7 @@ def get_server_info(server_addr: str) -> Tuple[str, str]:
         # server_addr not a valid ip address, then it might be a 
         # valid hostname
         # pylint: disable=raise-missing-from
-        if not is_valid_hostname(server_addr):
+        if not is_valid_hostname(server_addr):     
             raise ValueError(f"Invalid hostname: {server_addr}.")
         server_name = server_addr
         try:
@@ -337,7 +334,7 @@ def get_server_info(server_addr: str) -> Tuple[str, str]:
             # (hostname, aliaslist, ipaddrlist)
             server_ip = socket.gethostbyname_ex(server_name)[2][0]
         except socket.gaierror:
-            raise NetworkError(f"Unknown server: {server_name}.")
+            raise ValueError(f"Unknown server: {server_name}.")
     else:  
         # server_addr is a valid ip address, get the hostname
         # if possible

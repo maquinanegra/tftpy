@@ -18,25 +18,86 @@ dest_file       name for the destination file
 
 import docopt
 import tftp
+import cmd
+import sys
 
-def action(args,server_info):
+class cl_interface(cmd.Cmd):
+    def __init__(self, args):
+        self.args = args
+        cmd.Cmd.__init__(self)
+        self.prompt = "tftp client> "
+
+    def do_get(self, addarg):
+        'get command: download files from server\nusage: get (<source_file>) [<dest_file>]'
+        self.args["get"] = True
+        if len(addarg.split()) == 1:
+            self.args["<source_file>"] = addarg
+            self.args["<dest_file>"] = addarg
+        elif len(addarg.split()) == 2: 
+            self.args["<source_file>"], self.args["<dest_file>"]= addarg.split()
+        else: 
+            raise ValueError(f"get command only allows one or two arguments.")
+        action(self.args)
+
+    def do_put(self, addarg):
+        'get command: upload files to server\nusage: put (<source_file>) [<dest_file>]'
+        self.args["put"] = True
+        if len(addarg.split()) == 1:
+            self.args["<source_file>"] = addarg
+            self.args["<dest_file>"] = addarg
+        elif len(addarg.split()) == 2: 
+            self.args["<source_file>"], self.args["<dest_file>"]= addarg.split()
+        else: 
+            raise ValueError(f"get command only allows one or two arguments.")
+        action(self.args)
+        
+    def do_dir(self, arg):
+        'dir command: list server files'
+        print ("hello again"), arg, "!"
+
+    def help_hello(self):
+        print ("syntax: hello [message]"),
+        print ("-- prints a hello message")
+
+    def do_quit(self, arg):
+        sys.exit(1)
+
+    def help_quit(self):
+        print ("syntax: quit"),
+        print ("-- terminates the application")
+
+
+def action(args):
     if args.get("get"):
-        tot_bytes = tftp.get_file((server_info[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
-        print(f"Received file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved locally as '{args.get('<dest_file>')}'")
-    elif args.get("put"):
-        x = tftp.put_file((server_info[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
-        #print(f"Received file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved locally as '{args.get('<dest_file>')}'")
+        tot_bytes = tftp.get_file((args.get('<server>')[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
+        if args.get('<source_file>') == args.get('<dest_file>'):
+            print(f"Received file '{args.get('<source_file>')}' {tot_bytes} bytes.")
+        else:
+            print(f"Received file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved locally as '{args.get('<dest_file>')}'")
 
-def tftp_interactive(args, server_info):
+    elif args.get("put"):
+        tot_bytes = tftp.put_file((args.get('<server>')[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
+        if args.get('<source_file>') == args.get('<dest_file>'):
+            print(f"Sent file '{args.get('<source_file>')}' {tot_bytes} bytes.")
+        else:
+            print(f"Sent file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved remotely as '{args.get('<dest_file>')}'")
+
+def tftp_interactive(args, server_info):    
     if server_info[1]:
         print(f"Exchaging files with server '{server_info[1]}' ({server_info[0]})")
         print("not yet implemented")
     else:
         print(f"Exchaging files with server {server_info[0]}")
         print("not yet implemented")
+    start_cli = cl_interface(args, server_info)
+    start_cli.cmdloop()
 
-def verify_cli_in(args):    
-    _server_info = tftp.get_server_info(args['<server>'])
+def verify_cli_in(args):  
+    try:
+        args['<server>'] = tftp.get_server_info(args['<server>'])
+    except ValueError as err:
+        print(err)
+        exit()
     # specified port is not a number > exit 
     if not args["-p"].isnumeric():
         raise docopt.DocoptExit
@@ -49,8 +110,9 @@ def verify_cli_in(args):
             args["<dest_file>"]=args["<source_file>"]
         # interactive cli access
         if not(args.get("put") or args.get("get")) and not args.get("<source_file>"):
-            tftp_interactive(args, server_info)
-    return _server_info
+            start_cli = cl_interface(args)
+            start_cli.cmdloop()
+    return args['<server>']
 
 args=docopt.docopt(__doc__)
 
