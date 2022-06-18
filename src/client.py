@@ -26,6 +26,10 @@ class cl_interface(cmd.Cmd):
         self.args = args
         cmd.Cmd.__init__(self)
         self.prompt = "tftp client> "
+        cmd.Cmd.doc_header = None
+        
+    def default(self, line):
+        self.stdout.write("Unknown command: %s\n" % (line.split()[0],))    
 
     def do_get(self, addarg):
         'get command: download files from server\nusage: get (<source_file>) [<dest_file>]'
@@ -36,11 +40,12 @@ class cl_interface(cmd.Cmd):
         elif len(addarg.split()) == 2: 
             self.args["<source_file>"], self.args["<dest_file>"]= addarg.split()
         else: 
-            raise ValueError(f"get command only allows one or two arguments.")
+            print("Usage: get remotefile [localfile]")
+            return
         action(self.args)
-
+        
     def do_put(self, addarg):
-        'get command: upload files to server\nusage: put (<source_file>) [<dest_file>]'
+        'put command: upload files to server\nusage: put (<source_file>) [<dest_file>]'
         self.args["put"] = True
         if len(addarg.split()) == 1:
             self.args["<source_file>"] = addarg
@@ -50,16 +55,23 @@ class cl_interface(cmd.Cmd):
         else: 
             raise ValueError(f"get command only allows one or two arguments.")
         action(self.args)
-        
-    def do_dir(self, arg):
-        'dir command: list server files'
-        print ("hello again"), arg, "!"
 
-    def help_hello(self):
-        print ("syntax: hello [message]"),
-        print ("-- prints a hello message")
+    def do_dir(self, cenas):
+        'dir command: list server files'
+        self.args["get"] = True     
+        self.args["<source_file>"] = ''
+        self.args["<dest_file>"] = ''
+        action(self.args)
+    
+    def do_help(self, *args):
+        print ('''Commands:
+    get remote_file [local_file] - get a file from server and save it as local_file\n\
+    put local_file [remote_file] - send a file to server and store it as remote_file\n\
+    dir                          - obtain a listing of remote files
+    quit                         - exit TFTP client''')
 
     def do_quit(self, arg):
+        print("Exiting TFTP client.\nGoodbye!")
         sys.exit(1)
 
     def help_quit(self):
@@ -68,19 +80,27 @@ class cl_interface(cmd.Cmd):
 
 
 def action(args):
-    if args.get("get"):
-        tot_bytes = tftp.get_file((args.get('<server>')[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
-        if args.get('<source_file>') == args.get('<dest_file>'):
-            print(f"Received file '{args.get('<source_file>')}' {tot_bytes} bytes.")
-        else:
-            print(f"Received file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved locally as '{args.get('<dest_file>')}'")
+    try:    
+        if args.get("get"):
+            tot_bytes = tftp.get_file((args.get('<server>')[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'), args.get('<server>')[1])
+            if args.get('<source_file>') == args.get('<dest_file>'):
+                print(f"Received file '{args.get('<source_file>')}' {tot_bytes} bytes.")
+            else:
+                print(f"Received file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved locally as '{args.get('<dest_file>')}'")
 
-    elif args.get("put"):
-        tot_bytes = tftp.put_file((args.get('<server>')[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
-        if args.get('<source_file>') == args.get('<dest_file>'):
-            print(f"Sent file '{args.get('<source_file>')}' {tot_bytes} bytes.")
-        else:
-            print(f"Sent file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved remotely as '{args.get('<dest_file>')}'")
+        elif args.get("put"):
+            tot_bytes = tftp.put_file((args.get('<server>')[0],int(args.get("-p"))),args.get('<source_file>'), args.get('<dest_file>'))
+            if args.get('<source_file>') == args.get('<dest_file>'):
+                print(f"Sent file '{args.get('<source_file>')}' {tot_bytes} bytes.")
+            else:
+                print(f"Sent file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved remotely as '{args.get('<dest_file>')}'")
+    except tftp.NetworkError:
+        print("Server not responding. Exiting.")
+        sys.exit()
+    except ValueError as err:
+        print(err)
+    except tftp.Err as err: #server errors. ex: file not found
+        print(err)
 
 def tftp_interactive(args, server_info):    
     if server_info[1]:
@@ -118,5 +138,4 @@ args=docopt.docopt(__doc__)
 
 server_info = verify_cli_in(args)
 
-action(args,server_info)
-
+action(args)

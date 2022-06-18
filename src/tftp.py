@@ -11,7 +11,7 @@ import string
 import ipaddress
 import socket 
 from typing import Tuple
-
+import sys
 ################################################################################
 ##
 ##      PROTOCOL CONSTANTS AND TYPES
@@ -68,7 +68,7 @@ INET4Address = Tuple[str, int]        # TCP/UDP address => IPv4 and port
 ##
 ###############################################################
 
-def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
+def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str, serv_name):
     """
     RRQ a file given by filename from a remote TFTP server given
     by serv_addr.
@@ -81,7 +81,10 @@ def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
         with open(new_file_name, 'wb') as file:
             sock.settimeout(INACTIVITY_TIMEOUT)
             rrq = pack_rrq(file_name)
-            sock.sendto(rrq, serv_addr)
+            try:
+                sock.sendto(rrq, serv_addr)
+            except:
+                raise NetworkError(f"Error reaching the server '{serv_name}' ({serv_addr[0]}).")           
             next_block_num = 1
             tot_data = 0
             while True:
@@ -109,7 +112,7 @@ def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
                     raise ProtocolError(f'Invalid opcode {opcode}')
 
                 next_block_num += 1
-            return tot_data#:
+            return tot_data
         #:
     #:
 #:
@@ -118,7 +121,7 @@ def iter_bytes(my_bytes):
     for i in range(len(my_bytes)):
         yield my_bytes[i:i+1]
 
-def put_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
+def put_file(serv_addr: INET4Address, file_name: str, new_file_name: str, serv_name='' ):
     """
     WRQ a file given by filename to a remote TFTP server given
     by serv_addr.
@@ -127,10 +130,13 @@ def put_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
         with open(file_name, 'rb') as file:
             sock.settimeout(INACTIVITY_TIMEOUT)
             wrq = pack_wrq(new_file_name)
-            sock.sendto(wrq, serv_addr)
+            try:
+                sock.sendto(wrq, serv_addr)
+            except:
+                raise NetworkError(f"Error reaching the server '{serv_name}' ({serv_addr[0]}).")           
             next_block_num = 1
-            c = file.read()
-            x = iter_bytes(c)    
+            read_file = file.read()
+            iter_file_cont = iter_bytes(read_file)    
             _supra_state_ = 1
             tot_data = 0
             while _supra_state_ == 1:
@@ -147,7 +153,7 @@ def put_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
                     while _sub_state_ == 1:
                         try:
                             if len(data) < 512:
-                                w = next(x)
+                                w = next(iter_file_cont)
                                 data += w
                                 tot_data += 1
 
@@ -155,6 +161,7 @@ def put_file(serv_addr: INET4Address, file_name: str, new_file_name: str):
                                 dat = pack_dat(next_block_num, data)
                                 sock.sendto(dat, new_serv_addr)
                                 _sub_state_= 0
+                       
                         except StopIteration:
                             dat = pack_dat(next_block_num, data)
                             sock.sendto(dat, new_serv_addr)
@@ -189,7 +196,7 @@ def unpack_wrq(packet: bytes) -> Tuple[str, str]:
 
 def _pack_rq(opcode: int, filename: str, mode: str = DEFAULT_MODE) -> bytes:
     if not is_ascii_printable(filename):
-        raise ValueError(f'Invalid filename {filename} (not ascii printable)')
+        raise ValueError(f"Invalid filename '{filename}' (not ascii printable).")
     if mode != 'octet':
         raise ValueError(f'Invalid mode {mode}. Supported modes: octet.')
 
@@ -203,7 +210,7 @@ def _unpack_rq(packet: bytes) -> Tuple[str, str]:
     filename_delim = packet.index(b'\x00', 2)
     filename = packet[2:filename_delim].decode()
     if not is_ascii_printable(filename):
-        raise ValueError(f'Invalid filename {filename} (not ascii printable).')
+        raise ValueError(f"Invalid filename '{filename}'' (not ascii printable).")
 
     mode_delim = len(packet) - 1
     mode = packet[filename_delim + 1:mode_delim].decode()
@@ -280,7 +287,10 @@ class Err(Exception):
     def __init__(self, error_code: int, error_msg: bytes):
         super().__init__(f'TFTP Error {error_code}')
         self.error_code = error_code
-        self.error_msg = error_msg.decode()
+        self.error_msg = error_msg.decode()     
+    
+    def __str__(self):
+        return "{}".format(self.error_msg+".")
     #:
 #:
 
