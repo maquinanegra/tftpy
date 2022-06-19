@@ -163,19 +163,24 @@ def verify_cli_in(args):
         if not args.get("<dest_file>"): 
             args["<dest_file>"]=args["<source_file>"]
         # interactive cli access
-        if not(args.get("put") or args.get("get")) and not args.get("<source_file>"):
-            ping = os.popen('ping -c4 192.168.1.50 &> /dev/null; echo $?').read()
-            ind = ping.index("% packet loss")
+        if not(args.get("put") or args.get("get")) and not args.get("<source_file>"):             #not efficient: if there's a firewall denying ICMP requests,
+            ping = os.popen(f"ping -c4 {args.get('<server>')[0]} &> /dev/null; echo $?").read()   #the program will be terminated. Solution: use GET command
+            ind = ping.index("% packet loss")                                                     #with specific filename (like DIR)
             packet_loss = int(ping[ind-2:ind])
-            print(packet_loss)
             if not packet_loss == 0:
-                print("Error reaching the server '<nome do servidor>' (<ip do servidor>).")
+                if args.get('<server>')[1]:
+                    print(f"Error reaching the server '{args.get('<server>')[1]}' ({args.get('<server>')[0]})")
+                else:
+                    print(f"Error reaching the server '{args.get('<server>')[0]}")
                 sys.exit()
             else:
                 call = "cl_interface" 
                 action(args, call)
                 start_cli = cl_interface(args)
-                start_cli.cmdloop()
+                if args.get('<server>')[1]:
+                    start_cli.cmdloop(intro = f"Exchaging files with server '{args.get('<server>')[1]}' ({args.get('<server>')[0]})")
+                else:
+                    start_cli.cmdloop(intro = f"Exchaging files with server '{args.get('<server>')[0]}'")
                 return args['<server>']
 
 args=docopt.docopt(__doc__)
