@@ -11,7 +11,7 @@ import string
 import ipaddress
 import socket 
 from typing import Tuple
-import sys
+import os
 ################################################################################
 ##
 ##      PROTOCOL CONSTANTS AND TYPES
@@ -90,11 +90,11 @@ def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str, serv_n
             while True:
                 packet, new_serv_addr = sock.recvfrom(SOCKET_BUFFER_SIZE)
                 opcode = unpack_opcode(packet)
-
+                    
                 if opcode == DAT:
                     block_num, data = unpack_dat(packet)
                     if block_num != next_block_num:
-                        raise ProtocolError(f'Invalid block number {block_num}')
+                        raise ProtocolError(f"Invalid block number {block_num}")
 
                     file.write(data)
                     tot_data += len(data)
