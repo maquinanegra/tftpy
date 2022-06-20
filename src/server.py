@@ -66,6 +66,16 @@ ERROR_MSGS = {
     NO_SUCH_USER            : 'No such user.'
 }
 
+import argparse
+
+parser = argparse.ArgumentParser(description="Server`s Socket")
+parser.add_argument("--directory", type=str, help="Directory (default: Curent directory)")
+parser.add_argument("--port", default=69, help="Server listening port (default: 69)")
+
+args = parser.parse_args()
+
+print(args.directory)
+
 from socketserver import BaseRequestHandler, ThreadingUDPServer
 from socket import socket, AF_INET, SOCK_DGRAM
 import time
@@ -85,6 +95,7 @@ if __name__ == '__main__':
     # Threading server allows serving multiple requests concurrently
     ThreadingUDPServer.allow_reuse_address = True
     serv = ThreadingUDPServer(('localhost', 20022), TimeHandler)
-    print('Starting server...', serv)
+#   print('Starting server...', serv)
+    print(f"Waiting for requests on {serv} port...")
     serv.serve_forever()
 
