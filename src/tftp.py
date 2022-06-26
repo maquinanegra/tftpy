@@ -5,6 +5,9 @@ methods.
 """
 # pylint: disable=redefined-outer-name
 
+from hashlib import new
+from http import client
+from pydoc import cli
 import re
 import struct 
 import string
@@ -12,6 +15,7 @@ import ipaddress
 import socket 
 from typing import Tuple
 import os
+import random
 ################################################################################
 ##
 ##      PROTOCOL CONSTANTS AND TYPES
@@ -73,10 +77,6 @@ def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str, serv_n
     RRQ a file given by filename from a remote TFTP server given
     by serv_addr.
     """
-    """
-    RRQ a file given by file_name from a remote TFTP server given
-    by serv_addr.
-    """
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         with open(new_file_name, 'wb') as file:
             sock.settimeout(INACTIVITY_TIMEOUT)
@@ -117,6 +117,47 @@ def get_file(serv_addr: INET4Address, file_name: str, new_file_name: str, serv_n
     #:
 #:
 
+##################################################################################
+def dir_req(serv_addr: INET4Address):
+    """
+    RRQ a file given by filename from a remote TFTP server given
+    by serv_addr.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.settimeout(INACTIVITY_TIMEOUT)
+        rrq = pack_rrq("")
+        file = b""
+        try:
+            sock.sendto(rrq, serv_addr)
+        except:
+            raise NetworkError(f"Error reaching the server '{serv_name}' ({serv_addr[0]}).")           
+        next_block_num = 1
+        tot_data = 0
+        while True:
+            packet, new_serv_addr = sock.recvfrom(SOCKET_BUFFER_SIZE)
+            opcode = unpack_opcode(packet)
+                
+            if opcode == DAT:
+                block_num, data = unpack_dat(packet)
+                if block_num != next_block_num:
+                    raise ProtocolError(f"Invalid block number {block_num}")
+                file += data
+                tot_data += len(data)
+                ack = pack_ack(next_block_num)
+                sock.sendto(ack, new_serv_addr)
+                if len(data) < MAX_DATA_LEN:
+                    break
+            elif opcode == ERR:
+                raise Err(*unpack_err(packet))
+            else: # opcode not in (DAT, ERR):
+                raise ProtocolError(f'Invalid opcode {opcode}')
+            next_block_num += 1
+        print(file.decode())
+        return tot_data
+        #:
+    #:
+#:
+###################################################################################################
 def iter_bytes(my_bytes):
     for i in range(len(my_bytes)):
         yield my_bytes[i:i+1]
@@ -172,6 +213,125 @@ def put_file(serv_addr: INET4Address, file_name: str, new_file_name: str, serv_n
                 next_block_num += 1
             return tot_data
 
+######################################################################################################
+def get_resp(client_addr, file_name):
+    """
+    RRQ request server response.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind((client_addr[0],random.randrange(49152,65535)))
+        with open(file_name, 'rb') as file:
+            sock.settimeout(INACTIVITY_TIMEOUT)
+            next_block_num = 1
+            read_file = file.read()
+            iter_file_cont = iter_bytes(read_file)    
+            data = b''
+            tot_data = 0
+            _supra_state_ = 2
+            while _supra_state_ == 2:
+                try:
+                    if len(data) < 512:
+                        w = next(iter_file_cont)
+                        data += w
+                        tot_data += 1
+                    else:
+                        dat = pack_dat(next_block_num, data)
+                        sock.sendto(dat, client_addr)
+                        _sub_state_= 1
+                        _supra_state_ = 1
+                except StopIteration:
+                    dat = pack_dat(next_block_num, data)
+                    sock.sendto(dat, client_addr)
+                    _sub_state_= 1
+                    _supra_state_= 1
+            next_block_num += 1
+            while _supra_state_ == 1:
+                packet, client_addr = sock.recvfrom(SOCKET_BUFFER_SIZE)
+                opcode = unpack_opcode(packet)
+                if opcode == ACK:
+                    block_num = unpack_ack(packet)
+                    if block_num + 1 != next_block_num:
+                        raise ProtocolError(f'Invalid block number {block_num}')
+                    _sub_state_ = 1
+                    data = b''
+                    while _sub_state_ == 1:
+                        try:
+                            if len(data) < 512:
+                                w = next(iter_file_cont)
+                                data += w
+                                tot_data += 1
+                            else:
+                                dat = pack_dat(next_block_num, data)
+                                sock.sendto(dat, client_addr)
+                                _sub_state_= 0
+                        except StopIteration:
+                            dat = pack_dat(next_block_num, data)
+                            sock.sendto(dat, client_addr)
+                            _sub_state_= 0
+                            _supra_state_= 0
+                next_block_num += 1
+            print(f"'{file_name}': file sent")
+            return tot_data
+
+######################################################################################################
+def dir_resp(client_addr, file_name):
+    """
+    DIR request server response.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind((client_addr[0],random.randrange(49152,65535)))
+        file = os.popen(f"ls -l").read().encode()
+        print(file)
+        sock.settimeout(INACTIVITY_TIMEOUT)
+        next_block_num = 1
+        iter_file_cont = iter_bytes(file)    
+        data = b''
+        tot_data = 0
+        _supra_state_ = 2
+        while _supra_state_ == 2:
+            try:
+                if len(data) < 512:
+                    w = next(iter_file_cont)
+                    data += w
+                    tot_data += 1
+                else:
+                    dat = pack_dat(next_block_num, data)
+                    sock.sendto(dat, client_addr)
+                    _sub_state_= 1
+                    _supra_state_ = 1
+            except StopIteration:
+                dat = pack_dat(next_block_num, data)
+                sock.sendto(dat, client_addr)
+                _sub_state_= 1
+                _supra_state_= 1
+        next_block_num += 1
+        while _supra_state_ == 1:
+            packet, client_addr = sock.recvfrom(SOCKET_BUFFER_SIZE)
+            opcode = unpack_opcode(packet)
+            if opcode == ACK:
+                block_num = unpack_ack(packet)
+                if block_num + 1 != next_block_num:
+                    raise ProtocolError(f'Invalid block number {block_num}')
+                _sub_state_ = 1
+                data = b''
+                while _sub_state_ == 1:
+                    try:
+                        if len(data) < 512:
+                            w = next(iter_file_cont)
+                            data += w
+                            tot_data += 1
+                        else:
+                            dat = pack_dat(next_block_num, data)
+                            sock.sendto(dat, client_addr)
+                            _sub_state_= 0
+                    except StopIteration:
+                        dat = pack_dat(next_block_num, data)
+                        sock.sendto(dat, client_addr)
+                        _sub_state_= 0
+                        _supra_state_= 0
+            next_block_num += 1
+        print(f"'{file_name}': file sent")
+        return tot_data#####################################################################################################################
 ################################################################################
 ##
 ##      PACKET PACKING AND UNPACKING

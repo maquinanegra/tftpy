@@ -61,9 +61,7 @@ class cl_interface(cmd.Cmd):
 
     def do_dir(self, *args):
         'dir command: list server files'
-        self.args["get"] = True     
-        self.args["<source_file>"] = ''
-        self.args["<dest_file>"] = ''
+        self.args["dir"] = True      
         action(self.args, self.call)
     
     def do_help(self, *args):
@@ -110,6 +108,9 @@ def action(args, call):
                 print(f"Sent file '{args.get('<source_file>')}' {tot_bytes} bytes.")
             else:
                 print(f"Sent file '{args.get('<source_file>')}' {tot_bytes} bytes.\nSaved remotely as '{args.get('<dest_file>')}'")
+        elif args.get("dir"):
+            tftp.dir_req((args.get('<server>')[0],int(args.get("-p"))))
+        
     except tftp.ProtocolError as err: # wrong block number 
         print(err)
         os.remove(args.get('<dest_file>')) 
