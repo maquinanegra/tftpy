@@ -1,6 +1,5 @@
 '''
-TFTPy - This module implements an interactive and command line TFTP 
-client.
+client module - defines the specific functions and procedures of a TFTP client.
 
 Usage: 
   client.py (get|put) [-p serv_port] <server> <source_file> [<dest_file>]
@@ -14,6 +13,12 @@ put             send file to server
 server          server IP or name
 source_file     name of the source file
 dest_file       name for the destination file
+
+Developed by:
+    João Sitole
+    Rui Caria
+
+2022/07/01
 '''
 
 import docopt

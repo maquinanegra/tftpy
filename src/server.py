@@ -1,3 +1,15 @@
+'''
+server module - defines the specific functions and procedures of a TFTP server.
+
+
+
+Developed by:
+    João Sitole
+    Rui Caria
+
+2022/07/01
+'''
+
 from socketserver import ThreadingUDPServer, DatagramRequestHandler
 from threading import Thread
 import tftp

@@ -1,8 +1,15 @@
 """
-This module handles all TFTP related data structures and 
-methods.
-(C) João Galamba, 2022
+tftpy module - defines common functions to handle data and packets of a TFTP client and a TFTP server.
+
+
+
+Developed by:
+    João Sitole
+    Rui Caria
+
+2022/07/01
 """
+
 # pylint: disable=redefined-outer-name
 
 from hashlib import new
@@ -130,7 +137,7 @@ def dir_req(serv_addr: INET4Address):
         try:
             sock.sendto(rrq, serv_addr)
         except:
-            raise NetworkError(f"Error reaching the server '{serv_name}' ({serv_addr[0]}).")           
+            raise NetworkError(f"Error reaching the server {serv_addr[0]}'.")           
         next_block_num = 1
         tot_data = 0
         while True:
